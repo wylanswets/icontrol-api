@@ -87,7 +87,7 @@ iControl.prototype.subscribeEvents = function(callback) {
   //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
   var self = this;
   this._generateSpsId(function(spsID) {
-    var url = this.system.eventURL + spsID;
+    var url = self.system.eventURL + spsID;
 
     var opts = {
       url: url,
