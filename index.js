@@ -31,6 +31,7 @@ function iControl(config) {
   this._accessToken = data && data.access_token;
   this._accessTokenExpires = data && data.access_token_expires;
   this._accessTokenExpiresAt = data && data.access_token_expires_at;
+  this._sessionToken = null;
   this._siteID = data && data.site_id;
   this._nowTime = now.getTime();
 
@@ -67,7 +68,6 @@ iControl.prototype._generateSpsId = function(callback) {
 
   if (this._loggingIn || !this._accessToken) {
     // try again when we're logged in
-    // consooe.log("Deferring request '%s' until login complete.", req.path);
 
     this.login(function(err) {
       if (err) return callback(err);
@@ -85,13 +85,7 @@ iControl.prototype._generateSpsId = function(callback) {
 iControl.prototype.subscribeEvents = function(callback) {
 
   var self = this;
-  //Check if we need a new bearer access token 
-  if(this._nowTime >= this._accessTokenExpiresAt) {
-    this.login(function(err) {
-      if (err) return callback(err, null);
-      self.subscribeEvents(callback); // login successful - try again!
-    }.bind(this));
-  }
+  // //Check if we need a new bearer access token 
   
   //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
   
@@ -108,15 +102,13 @@ iControl.prototype.subscribeEvents = function(callback) {
         bearer: self._accessToken
       }
     };
-    //Get request to endpoint
-    request.get(url, opts, function(err, response, body) {
-      if (!err && response.statusCode == 200) {
-        var json = JSON.parse(body);
-        callback(null, json);
-      } else {
-        callback(err, null);
-      }
 
+    self._makeAuthenticatedRequest(opts, function(data, error) {
+      if(error !== null) {
+        callback(error, null);
+      } else {
+        callback(null, data);
+      }
     });
 
   })
@@ -130,27 +122,32 @@ iControl.prototype.subscribeEvents = function(callback) {
  iControl.prototype.login = function(callback) {
   //  console.log("Testing");
    // queue this callback for when we're finished logging in
-   if (callback)
-     this._loginCompleteCallbacks.push(callback);
+   if (callback) {
+    this._loginCompleteCallbacks.push(callback);
+    console.log("cached callback");
+   }
+     
+
+
 
    // begin logging in if we're not already doing so
    if (!this._loggingIn) {
      this._loggingIn = true;
-     console.log("startingLogin");
      this._beginLogin();
    }
  }
 
  // called way down below when we're done with the oauth dance
  iControl.prototype._loginComplete = function(err) {
+   console.log("Logged in.");
    this._loggingIn = false;
    this._loggedIn = true;
    this._loginCompleteCallbacks.forEach(function(callback) { callback(err); });
    this._loginCompleteCallbacks = [];
+   console.log("Logged in");
  }
 
-iControl.prototype._beginLogin = function(callback = null) { //Callbacks bubble up so that _getCurrentStatus can maintain a callback during a status request
-  console.log("Begin Login");
+iControl.prototype._beginLogin = function() { 
   //use existing accessToken
   if (this._accessToken && (this._nowTime < this._accessTokenExpiresAt)) {
     console.log("Using existing access token.");
@@ -205,7 +202,7 @@ iControl.prototype._beginLogin = function(callback = null) { //Callbacks bubble 
             form[name] = value;
           }
 
-          this._submitLoginPage(action, form, callback);
+          this._submitLoginPage(action, form);
         }
         else {
           err = err || new Error("Invalid response code " + response.statusCode)
@@ -224,7 +221,7 @@ iControl.prototype._beginLogin = function(callback = null) { //Callbacks bubble 
   }.bind(this));
 }
 
-iControl.prototype._submitLoginPage = function(url, form, callback = null) {
+iControl.prototype._submitLoginPage = function(url, form) {
 
   request.post(url, {form:form}, function(err, response, body) {
     // we expect a redirect response
@@ -234,7 +231,7 @@ iControl.prototype._submitLoginPage = function(url, form, callback = null) {
       // library isn't decoding it correctly. Either way, @#$ IT, WE'LL DO IT LIVE
       var location = response.headers.location.replace(/&amp;/g, "&");
 
-      this._getAuthorizationCode(location, callback);
+      this._getAuthorizationCode(location);
     }
     else {
       err = err || new Error("Bad status code " + response.statusCode);
@@ -244,7 +241,7 @@ iControl.prototype._submitLoginPage = function(url, form, callback = null) {
   }.bind(this));
 }
 
-iControl.prototype._getAuthorizationCode = function(url, callback = null) {
+iControl.prototype._getAuthorizationCode = function(url) {
 
   var followRedirect = function(response) {
     var isAppURL = (response.headers.location.indexOf(this.system.clientRedirect) == 0);
@@ -259,7 +256,7 @@ iControl.prototype._getAuthorizationCode = function(url, callback = null) {
       var location = response.headers.location; // e.g. xfinityhome://auth?code=xyz
       var code = (/auth\?code=(.*)/).exec(location)[1];
 
-      this._getAccessToken(code, callback);
+      this._getAccessToken(code);
     }
     else {
       err = err || new Error("Invalid status code " + response.statusCode);
@@ -269,10 +266,9 @@ iControl.prototype._getAuthorizationCode = function(url, callback = null) {
   }.bind(this));
 }
 
-iControl.prototype._getAccessToken = function(authorizationCode, callback = null) {
-
+iControl.prototype._getAccessToken = function(authorizationCode) {
+  console.log("In access token");
   var url = this.system.oauthLoginURL + "token";
-  // console.log("Getting access token");
   var form = {
     client_id: this.system.clientID,
     client_secret: this.system.clientSecret,
@@ -290,9 +286,9 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
-
+  console.log("about to make request");
   request.post(url, {form:form}, function(err, response, body) {
-
+    console.log("Back from request");
     if (!err && response.statusCode == 200) {
 
       /* response is JSON like:
@@ -309,7 +305,6 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
       var json = JSON.parse(body);
       var curDate = new Date();
       var expiresDate = new Date(curDate.getTime() + (1000 * json.expires_in));
-      // console.log(json);
       this._refreshToken = json.refresh_token;
       this._accessToken = json.access_token;
       this._accessTokenExpires = json.expires_in;
@@ -317,8 +312,15 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
 
       //Force site ID to be set
       var self = this;
-      this._getCurrentStatus(function(data) {
-          self._siteID = data.site.id;
+      console.log("Going to get current status.");
+
+      var req = {
+        path: "client"
+      }
+
+
+      this._makeAuthenticatedRequest(req, function(data) {
+        self._siteID = data.site.id;
           storage.setItem("iControl." + self.email + ".json", {
             site_id: self._siteID,
             access_token: self._accessToken,
@@ -329,23 +331,8 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
 
           self._loggedIn = true;
           self._loginComplete();  
-      });
-   
+      }, true);
 
-      // console.log(json);
-
-      // save tokens in local storage
-      // storage.setItem("iControl." + this.email + ".json", {
-      //   access_token: this._accessToken,
-      //   access_token_expires: this._accessTokenExpires,
-      //   access_token_expires_at: this._accessTokenExpiresAt,
-      //   refresh_token: this._refreshToken,
-      // });
-
-      // this._loggedIn = true;
-      // this._loginComplete();
-
-      // this._getCurrentStatus(callback);
     }
     else if (!authorizationCode && !err && (response.statusCode == 400 || response.statusCode == 401)) {
 
@@ -366,6 +353,7 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
 
 iControl.prototype._getCurrentStatus = function(callback) {
 
+
   if(this._gettingStatus) {
     //Wait to fire this function again until previous request is done
     //We should also get a cached response on this making this fast.
@@ -379,7 +367,6 @@ iControl.prototype._getCurrentStatus = function(callback) {
   if(this._statuses !== null) {
     var now = new Date();
     var diff = now.getTime() - this._statusAge;
-    
     //Cache of 3 seconds is used.
     if(diff < 3000) {
       callback(this._statuses);
@@ -387,150 +374,64 @@ iControl.prototype._getCurrentStatus = function(callback) {
     }
   }
 
-
   this._gettingStatus = true;
 
-  var url = this.system.restAPI + "client";
-
   var opts = {
-    url: url,
-    headers: {
-      'X-Client-Features': 'no-cookei,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
-    },
-    auth: {
-      bearer: this._accessToken
-    }
+    path: "client",
+    method: 'GET'
   };
 
-  //Get request to endpoint
-  request.get(url, opts, function(err, response, body) {
-    if (!err && response.statusCode == 200) {
-      this._sessionToken = response.headers["x-session"];
+  var self = this;
+  this._makeAuthenticatedRequest(opts, function(data, error) {
+    var json = data;
+    self._statuses = json;
+    var date = new Date();
+    self._statusAge = date.getTime();
+    self._gettingStatus = false;
+    callback(self._statuses);
+    var statuses = self._statuses;
+    self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
+    self._statusCompleteCallbacks = [];
 
-      /* expecting a response like:
-      {
-        "links" : ...,
-        "siteIds" : [ "917828" ]
-      }
-      */
-      var json = JSON.parse(body);
+  });
 
-      this._statuses = json;
-      var date = new Date();
-      this._statusAge = date.getTime();
-      this._gettingStatus = false;
-      callback(this._statuses);
-      var statuses = this._statuses;
-      this._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
-      this._statusCompleteCallbacks = [];
-
-    }
-    else if (!err && (response.statusCode == 400 || response.statusCode == 401)) {
-      console.log("Access token expired; logging in again...");
-      this._accessToken = null;
-      this._accessTokenExpires = null;
-      this._beginLogin();
-    }
-    else {
-      console.log("Invalid status code " + response.statusCode);
-      err = err || new Error("Invalid status code " + response.statusCode);
-      this._notifyError(err, response, body);
-      this._loginComplete(err);
-    }
-
-  }.bind(this));
 }
 
 iControl.prototype._getAccessories = function(callback) {
 
-  if (this._loggingIn || !this._accessToken) {
 
-    this.login(function(err) {
-      if (err) return callback(err);
-      this._getAccessories(callback); // login successful - try again!
-    }.bind(this));
+  this._getCurrentStatus(function(status) {
+    var json = status;
 
-    return;
-  }
+    //API seems to have changed to only return "site" as a first-class element
+    this._siteID = json.site.id;
 
-  // check if token is expired and auto-start login process before bothering to try below request
-  // we will likely have a refresh token on hand so this should be fast.
-  if(this._nowTime >= this._accessTokenExpiresAt) {
-    this.login(function(err) {
-      if (err) return callback(err);
-      this._getAccessories(callback); // login successful - try again!
-    }.bind(this));
-  }
-
-  var url = this.system.restAPI + "client";
-
-  var opts = {
-    url: url,
-    headers: {
-      'X-Client-Features': 'no-cookei,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
-    },
-    auth: {
-      bearer: this._accessToken
-    }
-  };
-  request.get(url, opts, function(err, response, body) {
-    if (!err && response.statusCode == 200) {
-      this._sessionToken = response.headers["x-session"];
-
-      /* expecting a response like:
-      {
-        "links" : ...,
-        "siteIds" : [ "917828" ]
+    //console.log(json.devices);
+    var foundDevices = [];
+    var devices = json.devices;
+    for(var i in devices) {
+      var device = devices[i];
+      switch(device.deviceType) {
+        case "lightSwitch":
+            //foundDevices.push(device);
+            // console.log("switch: " + device.name);
+            break;
+        case "lightDimmer":
+            //foundDevices.push(device);
+            // console.log("dimmer: " + device.name);
+            break;
+        case "panel":
+            foundDevices.push(device);
+            break;
+        default:
+            //console.log('not supported:' + device.deviceType);
+            break;
       }
-      */
-      var json = JSON.parse(body);
-
-      //API seems to have changed to only return "site" as a first-class element
-      this._siteID = json.site.id;
-
-      //console.log(json.devices);
-      var foundDevices = [];
-      var devices = json.devices;
-      for(var i in devices) {
-        var device = devices[i];
-        switch(device.deviceType) {
-          case "lightSwitch":
-              //foundDevices.push(device);
-              // console.log("switch: " + device.name);
-              break;
-          case "lightDimmer":
-              //foundDevices.push(device);
-              // console.log("dimmer: " + device.name);
-              break;
-          case "panel":
-              foundDevices.push(device);
-              break;
-          default:
-              //console.log('not supported:' + device.deviceType);
-              break;
-        }
-      }
-
-      callback(foundDevices);
-
-      // debug("Using site %s", this._siteID);
-
-      // now we need the panel ID
-      // this._findPanel(json, callback);
-    }
-    else if (!err && (response.statusCode == 400 || response.statusCode == 401)) {
-      console.log("Access token expired; logging in again...");
-      this._accessToken = null;
-      this._accessTokenExpires = null;
-      this._beginLogin();
-    }
-    else {
-      err = err || new Error("Invalid status code " + response.statusCode);
-      this._notifyError(err, response, body);
-      this._loginComplete(err);
     }
 
-  }.bind(this));
+    callback(foundDevices);
+  })
+
 
 }
 
@@ -538,26 +439,26 @@ iControl.prototype._getAccessories = function(callback) {
  * Helper method for making a request that requires login (will login first if necessary).
  */
 
-iControl.prototype._makeAuthenticatedRequest = function(req, callback) {
+iControl.prototype._makeAuthenticatedRequest = function(req, callback, override) {
 
   // if we're currenly logging in, then call login() to defer this method - also call login
   // if we don't even have an access token (meaning we've never logged in this session)
   
+  //Override is used during initial login function to bypass the callback cache and run right now.
+  if(!override) {
+    if (this._loggingIn || !this._accessToken) {
+      // try again when we're logged in
+      // console.log("Deferring request '%s' until login complete.", req.path);
   
-  if (this._loggingIn || !this._accessToken) {
-    console.log(this._loggingIn);
-    console.log(this._accessToken);
-    // try again when we're logged in
-    consooe.log("Deferring request '%s' until login complete.", req.path);
-
-    this.login(function(err) {
-      if (err) return callback(err);
-      this._makeAuthenticatedRequest(req, callback); // login successful - try again!
-    }.bind(this));
-
-    return;
+      this.login(function(err) {
+        if (err) return callback(err);
+        this._makeAuthenticatedRequest(req, callback); // login successful - try again!
+      }.bind(this));
+  
+      return;
+    }
   }
-
+  
   // check if token is expired and auto-start login process before bothering to try below request
   // we will likely have a refresh token on hand so this should be fast.
   if(this._nowTime >= this._accessTokenExpiresAt) {
@@ -565,16 +466,29 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback) {
       if (err) return callback(err);
       this._makeAuthenticatedRequest(req, callback); // login successful - try again!
     }.bind(this));
+    return;
   }
 
-  req.url = this.system.restAPI + req.path;
+  //A few requests will define the full URL when it is different from the restAPI URL base.
+  if(req.path !== undefined) {
+    //Translate from just the path to the full URL
+    req.url = this.system.restAPI + req.path;
+  }
+
+  // req.url = this.system.restAPI + req.path;
   req.auth = {bearer:this._accessToken};
   req.headers = req.headers || {};
-  req.headers['X-Session'] = this._sessionToken;
+  if(this._sessionToken !== null) {
+    req.headers['X-Session'] = this._sessionToken;
+  }
+  req.headers['X-Client-Features'] = 'no-cookei,auth4all';
   
   request(req, function(err, response, body) {
     if (!err && response.statusCode == 200 && response.headers['content-type'].indexOf('json') != -1) {
-      callback(null, JSON.parse(body));
+      if(response.headers["x-session"] !== undefined) {
+        this._sessionToken = response.headers["x-session"];
+      }
+      callback(JSON.parse(body), null);
     }
     else if (!err && (response.statusCode == 400 || response.statusCode == 401)) {
       // our access token was rejected or expired - time to log in again
@@ -582,16 +496,16 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback) {
       this._accessToken = null;
       this._accessTokenExpires = null;
 
-      // try again when we're logged in
+    //   // try again when we're logged in
       this.login(function(err) {
-        if (err) return callback(err);
+        if (err) return callback(null, err);
         this._makeAuthenticatedRequest(req, callback); // login successful - try again!
       }.bind(this));
     }
     else {
       err = err || new Error("Invalid status code " + response.statusCode);
       this._notifyError(err, response, body);
-      callback(err);
+      callback(null, err);
     }
 
   }.bind(this));
@@ -599,5 +513,6 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback) {
 
 iControl.prototype._notifyError = function(err, response, body) {
   var message = format("There was an error while communicating with iControl. Status code was %s and error was: %s\nStack:%s\nResponse:\n%s", response && response.statusCode, err, new Error().stack, body);
+  console.log(message);
   // this.emit('error', new Error(message));
 }
