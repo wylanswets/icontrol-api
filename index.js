@@ -84,8 +84,17 @@ iControl.prototype._generateSpsId = function(callback) {
 
 iControl.prototype.subscribeEvents = function(callback) {
 
-  //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
   var self = this;
+  //Check if we need a new bearer access token 
+  if(this._nowTime >= this._accessTokenExpiresAt) {
+    this.login(function(err) {
+      if (err) return callback(err, null);
+      self.subscribeEvents(callback); // login successful - try again!
+    }.bind(this));
+  }
+  
+  //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
+  
   this._generateSpsId(function(spsID) {
     var url = self.system.eventURL + spsID;
 
@@ -103,7 +112,6 @@ iControl.prototype.subscribeEvents = function(callback) {
     request.get(url, opts, function(err, response, body) {
       if (!err && response.statusCode == 200) {
         var json = JSON.parse(body);
-
         callback(null, json);
       } else {
         callback(err, null);
@@ -264,7 +272,7 @@ iControl.prototype._getAuthorizationCode = function(url, callback = null) {
 iControl.prototype._getAccessToken = function(authorizationCode, callback = null) {
 
   var url = this.system.oauthLoginURL + "token";
-  console.log("Getting access token");
+  // console.log("Getting access token");
   var form = {
     client_id: this.system.clientID,
     client_secret: this.system.clientSecret,
@@ -273,12 +281,12 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
 
   // use a authorizationCode if given, otherwise use our refresh token
   if (authorizationCode) {
-    console.log("Logging in with authorization code from web form...");
+    // console.log("Logging in with authorization code from web form...");
     form.code = authorizationCode;
     form.grant_type = "authorization_code";
   }
   else {
-    console.log("Logging in with previously stored refresh token...");
+    // console.log("Logging in with previously stored refresh token...");
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
@@ -343,7 +351,7 @@ iControl.prototype._getAccessToken = function(authorizationCode, callback = null
 
       // we tried to log in with a refresh token and it was rejected or expired.
       // Nuke it and try logging in again without one.
-      console.log("Refresh token was rejected. Trying login from web form...");
+      // console.log("Refresh token was rejected. Trying login from web form...");
       this._refreshToken = null;
       this._beginLogin();
     }
