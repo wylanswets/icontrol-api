@@ -124,7 +124,7 @@ iControl.prototype.subscribeEvents = function(callback) {
    // queue this callback for when we're finished logging in
    if (callback) {
     this._loginCompleteCallbacks.push(callback);
-    console.log("cached callback");
+    // console.log("cached callback");
    }
      
 
@@ -139,23 +139,23 @@ iControl.prototype.subscribeEvents = function(callback) {
 
  // called way down below when we're done with the oauth dance
  iControl.prototype._loginComplete = function(err) {
-   console.log("Logged in.");
+  //  console.log("Logged in.");
    this._loggingIn = false;
    this._loggedIn = true;
    this._loginCompleteCallbacks.forEach(function(callback) { callback(err); });
    this._loginCompleteCallbacks = [];
-   console.log("Logged in");
+  //  console.log("Logged in");
  }
 
 iControl.prototype._beginLogin = function() { 
   //use existing accessToken
   if (this._accessToken && (this._nowTime < this._accessTokenExpiresAt)) {
-    console.log("Using existing access token.");
+    // console.log("Using existing access token.");
     this._loginComplete();
     return;
   }
   if (this._refreshToken) { // try to use the refresh token if we have one; skip the really slow login process
-    console.log("Getting new access token with refresh token.");
+    // console.log("Getting new access token with refresh token.");
     this._getAccessToken(null);
     return;
   }
@@ -267,7 +267,6 @@ iControl.prototype._getAuthorizationCode = function(url) {
 }
 
 iControl.prototype._getAccessToken = function(authorizationCode) {
-  console.log("In access token");
   var url = this.system.oauthLoginURL + "token";
   var form = {
     client_id: this.system.clientID,
@@ -286,9 +285,7 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
-  console.log("about to make request");
   request.post(url, {form:form}, function(err, response, body) {
-    console.log("Back from request");
     if (!err && response.statusCode == 200) {
 
       /* response is JSON like:
@@ -310,16 +307,13 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
       this._accessTokenExpires = json.expires_in;
       this._accessTokenExpiresAt = expiresDate.getTime();
 
-      //Force site ID to be set
       var self = this;
-      console.log("Going to get current status.");
 
       var req = {
         path: "client"
       }
-
-
       this._makeAuthenticatedRequest(req, function(data) {
+        //Force site ID to be set
         self._siteID = data.site.id;
           storage.setItem("iControl." + self.email + ".json", {
             site_id: self._siteID,
@@ -492,7 +486,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
     }
     else if (!err && (response.statusCode == 400 || response.statusCode == 401)) {
       // our access token was rejected or expired - time to log in again
-      console.log("Access token expired; logging in again...");
+      // console.log("Access token expired; logging in again...");
       this._accessToken = null;
       this._accessTokenExpires = null;
 
