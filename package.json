@@ -1,6 +1,6 @@
 {
   "name": "icontrol-api",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "API Wrapper for controlling and managing iControl platform with accessories.",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/wylanswets/icontrol-api.git"
   },
-  "author": "",
+  "author": "Wylan Swets",
   "license": "MIT",
   "dependencies": {
     "debug": "^2.2.0",
