@@ -24,7 +24,6 @@ function iControl(config) {
   this._loggedIn = false;
 
   storage.initSync();
-  var now = new Date();
   // try to load the refresh token if we have one stored from a previous session
   var data = storage.getItem("iControl." + this.email + ".json");
   this._refreshToken = data && data.refresh_token;
@@ -33,7 +32,6 @@ function iControl(config) {
   this._accessTokenExpiresAt = data && data.access_token_expires_at;
   this._sessionToken = null;
   this._siteID = data && data.site_id;
-  this._nowTime = now.getTime();
 
 
   this._statusAge = null;
@@ -85,7 +83,6 @@ iControl.prototype._generateSpsId = function(callback) {
 iControl.prototype.subscribeEvents = function(callback) {
 
   var self = this;
-  // //Check if we need a new bearer access token 
   
   //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
   
@@ -94,13 +91,13 @@ iControl.prototype.subscribeEvents = function(callback) {
 
     var opts = {
       url: url,
-      headers: {
-        'Accept': 'application/json',
-        'X-Client-Features': 'no-cookei,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
-      },
-      auth: {
-        bearer: self._accessToken
-      }
+      // headers: {
+      //   'Accept': 'application/json',
+      //   'X-Client-Features': 'no-cookie,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
+      // },
+      // auth: {
+      //   bearer: self._accessToken
+      // }
     };
 
     self._makeAuthenticatedRequest(opts, function(data, error) {
@@ -129,7 +126,6 @@ iControl.prototype.subscribeEvents = function(callback) {
      
 
 
-
    // begin logging in if we're not already doing so
    if (!this._loggingIn) {
      this._loggingIn = true;
@@ -149,13 +145,14 @@ iControl.prototype.subscribeEvents = function(callback) {
 
 iControl.prototype._beginLogin = function() { 
   //use existing accessToken
-  if (this._accessToken && (this._nowTime < this._accessTokenExpiresAt)) {
-    // console.log("Using existing access token.");
+  var date = new Date();
+  if (this._accessTokenExpiresAt !== null && (date.getTime() < this._accessTokenExpiresAt)) {
+    console.log("Using existing access token.");
     this._loginComplete();
     return;
   }
   if (this._refreshToken) { // try to use the refresh token if we have one; skip the really slow login process
-    // console.log("Getting new access token with refresh token.");
+    console.log("Getting new access token with refresh token.");
     this._getAccessToken(null);
     return;
   }
@@ -276,12 +273,12 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 
   // use a authorizationCode if given, otherwise use our refresh token
   if (authorizationCode) {
-    // console.log("Logging in with authorization code from web form...");
+    console.log("Logging in with authorization code from web form...");
     form.code = authorizationCode;
     form.grant_type = "authorization_code";
   }
   else {
-    // console.log("Logging in with previously stored refresh token...");
+    console.log("Logging in with previously stored refresh token...");
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
@@ -312,6 +309,7 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
       var req = {
         path: "client"
       }
+      
       this._makeAuthenticatedRequest(req, function(data) {
         //Force site ID to be set
         self._siteID = data.site.id;
@@ -322,7 +320,6 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
             access_token_expires_at: self._accessTokenExpiresAt,
             refresh_token: self._refreshToken,
           });
-
           self._loggedIn = true;
           self._loginComplete();  
       }, true);
@@ -437,7 +434,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
 
   // if we're currenly logging in, then call login() to defer this method - also call login
   // if we don't even have an access token (meaning we've never logged in this session)
-  
+  // console.log("request 1");
   //Override is used during initial login function to bypass the callback cache and run right now.
   if(!override) {
     if (this._loggingIn || !this._accessToken) {
@@ -452,17 +449,20 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       return;
     }
   }
-  
+  var self = this;
   // check if token is expired and auto-start login process before bothering to try below request
   // we will likely have a refresh token on hand so this should be fast.
-  if(this._nowTime >= this._accessTokenExpiresAt) {
+  var date = new Date();
+  if(date.getTime() >= this._accessTokenExpiresAt) {
+    this._accessToken = null;
+    this._accessTokenExpiresAt = null;
+    this._accessTokenExpires = null;
     this.login(function(err) {
       if (err) return callback(err);
-      this._makeAuthenticatedRequest(req, callback); // login successful - try again!
+      self._makeAuthenticatedRequest(req, callback); // login successful - try again!
     }.bind(this));
     return;
   }
-
   //A few requests will define the full URL when it is different from the restAPI URL base.
   if(req.path !== undefined) {
     //Translate from just the path to the full URL
@@ -472,28 +472,22 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
   // req.url = this.system.restAPI + req.path;
   req.auth = {bearer:this._accessToken};
   req.headers = req.headers || {};
-  if(this._sessionToken !== null) {
-    req.headers['X-Session'] = this._sessionToken;
-  }
-  req.headers['X-Client-Features'] = 'no-cookei,auth4all';
+  req.headers['X-Client-Features'] = 'no-cookie,auth4all';
   
   request(req, function(err, response, body) {
     if (!err && response.statusCode == 200 && response.headers['content-type'].indexOf('json') != -1) {
-      if(response.headers["x-session"] !== undefined) {
-        this._sessionToken = response.headers["x-session"];
-      }
-      callback(JSON.parse(body), null);
+      var json = JSON.parse(body);
+      callback(json, null);
     }
     else if (!err && (response.statusCode == 400 || response.statusCode == 401)) {
       // our access token was rejected or expired - time to log in again
-      // console.log("Access token expired; logging in again...");
       this._accessToken = null;
       this._accessTokenExpires = null;
 
     //   // try again when we're logged in
       this.login(function(err) {
         if (err) return callback(null, err);
-        this._makeAuthenticatedRequest(req, callback); // login successful - try again!
+        self._makeAuthenticatedRequest(req, callback); // login successful - try again!
       }.bind(this));
     }
     else {
