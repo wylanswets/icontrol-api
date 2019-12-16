@@ -310,9 +310,10 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
         path: "client"
       }
       
-      this._makeAuthenticatedRequest(req, function(data) {
+      this._makeAuthenticatedRequest(req, function(data, error) {
         //Force site ID to be set
-        self._siteID = data.site.id;
+        if(error === null) {
+          self._siteID = data.site.id;
           storage.setItem("iControl." + self.email + ".json", {
             site_id: self._siteID,
             access_token: self._accessToken,
@@ -321,7 +322,12 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
             refresh_token: self._refreshToken,
           });
           self._loggedIn = true;
-          self._loginComplete();  
+          self._loginComplete(); 
+        } else {
+          self._loggedIn = true;
+          self._loginComplete(error);
+        }
+         
       }, true);
 
     }
@@ -380,7 +386,7 @@ iControl.prototype._getCurrentStatus = function(callback) {
       var date = new Date();
       self._statusAge = date.getTime();
       self._gettingStatus = false;
-      callback(self._statuses);
+      callback(self._statuses, null);
       var statuses = self._statuses;
       self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
       self._statusCompleteCallbacks = [];
@@ -403,7 +409,7 @@ iControl.prototype._getAccessories = function(callback) {
       //API seems to have changed to only return "site" as a first-class element
       this._siteID = json.site.id;
   
-      callback(json.devices);
+      callback(json.devices, null);
     } else {
       callback(null, error);
     }
