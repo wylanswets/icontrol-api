@@ -374,15 +374,20 @@ iControl.prototype._getCurrentStatus = function(callback) {
 
   var self = this;
   this._makeAuthenticatedRequest(opts, function(data, error) {
-    var json = data;
-    self._statuses = json;
-    var date = new Date();
-    self._statusAge = date.getTime();
-    self._gettingStatus = false;
-    callback(self._statuses);
-    var statuses = self._statuses;
-    self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
-    self._statusCompleteCallbacks = [];
+    if(error === null) {
+      var json = data;
+      self._statuses = json;
+      var date = new Date();
+      self._statusAge = date.getTime();
+      self._gettingStatus = false;
+      callback(self._statuses);
+      var statuses = self._statuses;
+      self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
+      self._statusCompleteCallbacks = [];
+    } else {
+      callback(null, error);
+    }
+    
 
   });
 
@@ -390,13 +395,20 @@ iControl.prototype._getCurrentStatus = function(callback) {
 
 iControl.prototype._getAccessories = function(callback) {
 
-  this._getCurrentStatus(function(status) {
-    var json = status;
+  this._getCurrentStatus(function(status, error) {
 
-    //API seems to have changed to only return "site" as a first-class element
-    this._siteID = json.site.id;
+    if(error === null) {
+      var json = status;
 
-    callback(json.devices);
+      //API seems to have changed to only return "site" as a first-class element
+      this._siteID = json.site.id;
+  
+      callback(json.devices);
+    } else {
+      callback(null, error);
+    }
+
+    
   });
 
 }
