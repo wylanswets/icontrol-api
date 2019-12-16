@@ -273,12 +273,12 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 
   // use a authorizationCode if given, otherwise use our refresh token
   if (authorizationCode) {
-    console.log("Logging in with authorization code from web form...");
+    // console.log("Logging in with authorization code from web form...");
     form.code = authorizationCode;
     form.grant_type = "authorization_code";
   }
   else {
-    console.log("Logging in with previously stored refresh token...");
+    // console.log("Logging in with previously stored refresh token...");
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
@@ -390,39 +390,14 @@ iControl.prototype._getCurrentStatus = function(callback) {
 
 iControl.prototype._getAccessories = function(callback) {
 
-
   this._getCurrentStatus(function(status) {
     var json = status;
 
     //API seems to have changed to only return "site" as a first-class element
     this._siteID = json.site.id;
 
-    //console.log(json.devices);
-    var foundDevices = [];
-    var devices = json.devices;
-    for(var i in devices) {
-      var device = devices[i];
-      switch(device.deviceType) {
-        case "lightSwitch":
-            //foundDevices.push(device);
-            // console.log("switch: " + device.name);
-            break;
-        case "lightDimmer":
-            //foundDevices.push(device);
-            // console.log("dimmer: " + device.name);
-            break;
-        case "panel":
-            foundDevices.push(device);
-            break;
-        default:
-            //console.log('not supported:' + device.deviceType);
-            break;
-      }
-    }
-
-    callback(foundDevices);
-  })
-
+    callback(json.devices);
+  });
 
 }
 
