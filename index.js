@@ -143,12 +143,10 @@ iControl.prototype._beginLogin = function() {
   //use existing accessToken
   var date = new Date();
   if (this._accessTokenExpiresAt !== null && (date.getTime() < this._accessTokenExpiresAt)) {
-    console.log("Using existing access token.");
     this._loginComplete();
     return;
   }
   if (this._refreshToken) { // try to use the refresh token if we have one; skip the really slow login process
-    console.log("Getting new access token with refresh token.");
     this._getAccessToken(null);
     return;
   }
