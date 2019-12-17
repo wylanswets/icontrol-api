@@ -117,11 +117,9 @@ iControl.prototype.subscribeEvents = function(callback) {
  */
 
  iControl.prototype.login = function(callback) {
-  //  console.log("Testing");
    // queue this callback for when we're finished logging in
    if (callback) {
     this._loginCompleteCallbacks.push(callback);
-    // console.log("cached callback");
    }
      
 
@@ -135,12 +133,10 @@ iControl.prototype.subscribeEvents = function(callback) {
 
  // called way down below when we're done with the oauth dance
  iControl.prototype._loginComplete = function(err) {
-  //  console.log("Logged in.");
    this._loggingIn = false;
    this._loggedIn = true;
    this._loginCompleteCallbacks.forEach(function(callback) { callback(err); });
    this._loginCompleteCallbacks = [];
-  //  console.log("Logged in");
  }
 
 iControl.prototype._beginLogin = function() { 
@@ -273,12 +269,10 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 
   // use a authorizationCode if given, otherwise use our refresh token
   if (authorizationCode) {
-    // console.log("Logging in with authorization code from web form...");
     form.code = authorizationCode;
     form.grant_type = "authorization_code";
   }
   else {
-    // console.log("Logging in with previously stored refresh token...");
     form.refresh_token = this._refreshToken;
     form.grant_type = "refresh_token";
   }
@@ -335,7 +329,6 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 
       // we tried to log in with a refresh token and it was rejected or expired.
       // Nuke it and try logging in again without one.
-      // console.log("Refresh token was rejected. Trying login from web form...");
       this._refreshToken = null;
       this._beginLogin();
     }
@@ -350,7 +343,6 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 
 iControl.prototype._getCurrentStatus = function(callback) {
 
-
   if(this._gettingStatus) {
     //Wait to fire this function again until previous request is done
     //We should also get a cached response on this making this fast.
@@ -358,15 +350,14 @@ iControl.prototype._getCurrentStatus = function(callback) {
     return;
   }
 
-  
   //Because all statuses come back in a single call - we have to do a short lived cache
   //to keep the number of requests down.
   if(this._statuses !== null) {
     var now = new Date();
     var diff = now.getTime() - this._statusAge;
-    //Cache of 3 seconds is used.
-    if(diff < 3000) {
-      callback(this._statuses);
+    //Cache of 2 seconds is used.
+    if(diff < 2000) {
+      callback(this._statuses, null);
       return;
     }
   }
@@ -388,12 +379,11 @@ iControl.prototype._getCurrentStatus = function(callback) {
       self._gettingStatus = false;
       callback(self._statuses, null);
       var statuses = self._statuses;
-      self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses); });
+      self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses, null); });
       self._statusCompleteCallbacks = [];
     } else {
       callback(null, error);
     }
-    
 
   });
 
@@ -413,7 +403,6 @@ iControl.prototype._getAccessories = function(callback) {
     } else {
       callback(null, error);
     }
-
     
   });
 
@@ -427,12 +416,10 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
 
   // if we're currenly logging in, then call login() to defer this method - also call login
   // if we don't even have an access token (meaning we've never logged in this session)
-  // console.log("request 1");
-  //Override is used during initial login function to bypass the callback cache and run right now.
+  // Override is used during initial login function to bypass the callback cache and run right now.
   if(!override) {
     if (this._loggingIn || !this._accessToken) {
       // try again when we're logged in
-      // console.log("Deferring request '%s' until login complete.", req.path);
   
       this.login(function(err) {
         if (err) return callback(err);
@@ -462,7 +449,6 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
     req.url = this.system.restAPI + req.path;
   }
 
-  // req.url = this.system.restAPI + req.path;
   req.auth = {bearer:this._accessToken};
   req.headers = req.headers || {};
   req.headers['X-Client-Features'] = 'no-cookie,auth4all';
