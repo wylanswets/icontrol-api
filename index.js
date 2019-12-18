@@ -420,7 +420,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       // try again when we're logged in
   
       this.login(function(err) {
-        if (err) return callback(err);
+        if (err) return callback(null, err);
         this._makeAuthenticatedRequest(req, callback); // login successful - try again!
       }.bind(this));
   
@@ -436,7 +436,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
     this._accessTokenExpiresAt = null;
     this._accessTokenExpires = null;
     this.login(function(err) {
-      if (err) return callback(err);
+      if (err) return callback(null, err);
       self._makeAuthenticatedRequest(req, callback); // login successful - try again!
     }.bind(this));
     return;
