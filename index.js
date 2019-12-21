@@ -68,15 +68,17 @@ iControl.prototype._generateSpsId = function(callback) {
     // try again when we're logged in
 
     this.login(function(err) {
-      if (err) return callback(err);
+      if (err) return callback(null, err);
       this._generateSpsId(callback); // login successful - try again!
     }.bind(this));
 
-    return;
+    // return;
+  } else {
+    var spsID = this._siteID + "-" + Date.now() + "-" + (1e8 * Math.random()).toString(16).replace(".", "");
+    callback(spsID, null);
   }
 
-  var spsID = this._siteID + "-" + Date.now() + "-" + (1e8 * Math.random()).toString(16).replace(".", "");
-  callback(spsID);
+  
 }
 
 
@@ -85,28 +87,35 @@ iControl.prototype.subscribeEvents = function(callback) {
   var self = this;
   
   //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
+  this._generateSpsId(function(spsID, error) {
+
+    if(error !== null) {
+      console.log(error);
+      callback(error, null);
+      
+    } else {
+      var url = self.system.eventURL + spsID;
+
+      var opts = {
+        url: url,
+        // headers: {
+        //   'Accept': 'application/json',
+        //   'X-Client-Features': 'no-cookie,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
+        // },
+        // auth: {
+        //   bearer: self._accessToken
+        // }
+      };
   
-  this._generateSpsId(function(spsID) {
-    var url = self.system.eventURL + spsID;
-
-    var opts = {
-      url: url,
-      // headers: {
-      //   'Accept': 'application/json',
-      //   'X-Client-Features': 'no-cookie,auth4all' //this is required for some reason if not there, api will return "UNAUTHORIZED / RESTRICTED user" or something
-      // },
-      // auth: {
-      //   bearer: self._accessToken
-      // }
-    };
-
-    self._makeAuthenticatedRequest(opts, function(data, error) {
-      if(error !== null) {
-        callback(error, null);
-      } else {
-        callback(null, data);
-      }
-    });
+      self._makeAuthenticatedRequest(opts, function(data, error) {
+        if(error !== null) {
+          callback(error, null);
+        } else {
+          callback(null, data);
+        }
+      });
+    }
+    
 
   })
 
