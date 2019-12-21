@@ -468,6 +468,10 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       }.bind(this));
     }
     else {
+      // fully retry the login process on the next request
+      this._accessToken = null;
+      this._accessTokenExpires = null;
+      this._refreshToken = null;
       err = err || new Error("Invalid status code " + response.statusCode);
       this._notifyError(err, response, body);
       callback(null, err);
