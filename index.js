@@ -39,6 +39,8 @@ function iControl(config) {
   this._gettingStatus = false;
   this._statusCompleteCallbacks = [];
 
+  this.requestCount = 1;
+
 }
 
 // inherits(iControl, EventEmitter);
@@ -63,10 +65,8 @@ iControl.ArmState = {
 
 
 iControl.prototype._generateSpsId = function(callback) {
-
   if (this._loggingIn || !this._accessToken) {
     // try again when we're logged in
-
     this.login(function(err) {
       if (err) return callback(null, err);
       this._generateSpsId(callback); // login successful - try again!
@@ -88,11 +88,8 @@ iControl.prototype.subscribeEvents = function(callback) {
   
   //URL for xfinity home is https://xhomeapi-lb-prod.apps.cloud.comcast.net/client/icontrol/delta?spsId={spsID}
   this._generateSpsId(function(spsID, error) {
-
     if(error !== null) {
-      console.log(error);
-      callback(error, null);
-      
+      callback(null, error);
     } else {
       var url = self.system.eventURL + spsID;
 
@@ -109,9 +106,9 @@ iControl.prototype.subscribeEvents = function(callback) {
   
       self._makeAuthenticatedRequest(opts, function(data, error) {
         if(error !== null) {
-          callback(error, null);
+          callback(null, error);
         } else {
-          callback(null, data);
+          callback(data, null);
         }
       });
     }
@@ -349,7 +346,6 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
 }
 
 iControl.prototype._getCurrentStatus = function(callback) {
-
   if(this._gettingStatus) {
     //Wait to fire this function again until previous request is done
     //We should also get a cached response on this making this fast.
@@ -420,7 +416,6 @@ iControl.prototype._getAccessories = function(callback) {
  */
 
 iControl.prototype._makeAuthenticatedRequest = function(req, callback, override) {
-
   // if we're currenly logging in, then call login() to defer this method - also call login
   // if we don't even have an access token (meaning we've never logged in this session)
   // Override is used during initial login function to bypass the callback cache and run right now.
@@ -480,6 +475,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       // fully retry the login process on the next request
       this._accessToken = null;
       this._accessTokenExpires = null;
+      this._accessTokenExpiresAt = null;
       this._refreshToken = null;
       err = err || new Error("Invalid status code " + response.statusCode);
       this._notifyError(err, response, body);
