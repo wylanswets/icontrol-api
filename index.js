@@ -379,7 +379,6 @@ iControl.prototype._getCurrentStatus = function(callback) {
       self._statuses = json;
       var date = new Date();
       self._statusAge = date.getTime();
-      self._gettingStatus = false;
       callback(self._statuses, null);
       var statuses = self._statuses;
       self._statusCompleteCallbacks.forEach(function(callback) { callback(statuses, null); });
@@ -387,6 +386,8 @@ iControl.prototype._getCurrentStatus = function(callback) {
     } else {
       callback(null, error);
     }
+    //In either case we are done getting statuses, unlock to allow another request
+    self._gettingStatus = false;
 
   });
 
