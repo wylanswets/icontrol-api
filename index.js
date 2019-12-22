@@ -464,6 +464,7 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       // our access token was rejected or expired - time to log in again
       this._accessToken = null;
       this._accessTokenExpires = null;
+      this._accessTokenExpiresAt = null;
 
     //   // try again when we're logged in
       this.login(function(err) {
@@ -472,11 +473,6 @@ iControl.prototype._makeAuthenticatedRequest = function(req, callback, override)
       }.bind(this));
     }
     else {
-      // fully retry the login process on the next request
-      this._accessToken = null;
-      this._accessTokenExpires = null;
-      this._accessTokenExpiresAt = null;
-      this._refreshToken = null;
       err = err || new Error("Invalid status code " + response.statusCode);
       this._notifyError(err, response, body);
       callback(null, err);
