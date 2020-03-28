@@ -17,13 +17,21 @@ function iControl(config) {
   this.email = config.email;
   this.password = config.password;
   this.pinCode = config.pinCode;
+  this.path = config.path ? config.path : "";
 
   // interested parties in us being logged in
   this._loginCompleteCallbacks = [];
   this._loggingIn = false;
   this._loggedIn = false;
 
-  storage.initSync();
+  var obj = null;
+  if(this.path != "") {
+    obj = {
+      dir: this.path
+    };
+  }
+
+  storage.initSync(obj);
   // try to load the refresh token if we have one stored from a previous session
   var data = storage.getItem("iControl." + this.email + ".json");
   this._refreshToken = data && data.refresh_token;
