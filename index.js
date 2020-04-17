@@ -185,7 +185,7 @@ iControl.prototype._beginLogin = function() {
       
       request(redirectURL, function (err, response, body) {
 
-        if (!err && response.statusCode == 200 && response.headers['content-type'].indexOf("text/html") == 0) {
+        if (!err && response.statusCode == 200) {
 
           // the response is an HTML login page. Suck out the hidden input fields so we can simulate a form submit
           var actionRegex = /<form.*action="([^"]+)"/g;
