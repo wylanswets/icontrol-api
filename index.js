@@ -41,6 +41,9 @@ function iControl(config) {
   this._sessionToken = null;
   this._siteID = data && data.site_id;
 
+  if(this._refreshToken === null) {
+    this._refreshToken = data && data.refresh_token;
+  }
 
   this._statusAge = null;
   this._statuses = null;
@@ -164,6 +167,9 @@ iControl.prototype._beginLogin = function() {
     this._getAccessToken(null);
     return;
   }
+
+  //None of this works anymore.
+  return;
 
   var url = this.system.oauthLoginURL + "authorize";
 
@@ -301,8 +307,15 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
       	"id_token": "eyJhbGciO..."
       }
       */
-      
-      var json = JSON.parse(body);
+
+     var json = JSON.parse(body);
+
+      if(this._refreshToken) {
+        if(this._refreshToken !== json.refresh_token) {
+          console.log("New refresh token: " + json.refresh_token);
+        }
+      }
+
       var curDate = new Date();
       var expiresDate = new Date(curDate.getTime() + (1000 * json.expires_in));
       this._refreshToken = json.refresh_token;
@@ -340,9 +353,7 @@ iControl.prototype._getAccessToken = function(authorizationCode) {
     else if (!authorizationCode && !err && (response.statusCode == 400 || response.statusCode == 401)) {
 
       // we tried to log in with a refresh token and it was rejected or expired.
-      // Nuke it and try logging in again without one.
-      this._refreshToken = null;
-      this._beginLogin();
+      console.log(response.body);
     }
     else {
       err = err || new Error("Invalid status code " + response.statusCode);
