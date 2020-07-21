@@ -18,6 +18,7 @@ function iControl(config) {
   this.password = config.password;
   this.pinCode = config.pinCode;
   this.path = config.path ? config.path : "";
+  this._refreshToken = config.refresh_token ? config.refresh_token : null;
 
   // interested parties in us being logged in
   this._loginCompleteCallbacks = [];
@@ -34,7 +35,6 @@ function iControl(config) {
   storage.initSync(obj);
   // try to load the refresh token if we have one stored from a previous session
   var data = storage.getItem("iControl." + this.email + ".json");
-  this._refreshToken = data && data.refresh_token;
   this._accessToken = data && data.access_token;
   this._accessTokenExpires = data && data.access_token_expires;
   this._accessTokenExpiresAt = data && data.access_token_expires_at;
@@ -218,7 +218,7 @@ iControl.prototype._beginLogin = function() {
 
     }
     else {
-      err = err || new Error("Invalid response code " + redirectResponse.statusCode)
+      redirectErr = redirectErr || new Error("Invalid response code " + redirectResponse.statusCode)
       this._notifyError(redirectErr, redirectResponse, redirectBody);
       this._loginComplete(redirectErr);
     }
