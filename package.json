@@ -1,6 +1,6 @@
 {
   "name": "icontrol-api",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "API Wrapper for controlling and managing iControl platform with accessories.",
   "main": "index.js",
   "scripts": {
